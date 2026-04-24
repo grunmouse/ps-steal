@@ -62,7 +62,6 @@
 /steal_push {
 	%инкрементируем указатель вершины стека
 	/steal_stack_top steal_stack_top 1 add def
-	%в этот момент стек должен вернуться в исходное состояние
 	%[строка]
 	steal_stack exch steal_stack_top exch put
 } def
@@ -96,7 +95,7 @@
 		%[steal_path, позиция, индекс]
 		steal_stack exch get
 		%[steal_path, позиция, строка]
-		str_append
+		steal_str_append
 		%[steal_path, позиция]
 	} for
 } def
@@ -104,7 +103,7 @@
 
 %Дописывает в указанную строку другую строку, начиная с заданной позиции
 %[строка_назначения, позиция, строка]
-/str_append {
+/steal_str_append {
 	2 index 
 	%[строка_назначения, позиция, строка, строка_назначения]
 	4 1 roll
@@ -119,6 +118,26 @@
 	%[строка_назначения, новая позиция]
 } bind def
 %[финальная строка, позиция]
+
+/steal_log 16 array def
+/steal_log_index 0 def
+
+%[строка]
+/steal_log_append {
+	steal_log_index steal_log length ge
+	{
+		mark
+		steal_log length 2 mul array
+		0
+		steal_log
+		/steal_log 3 index def
+		putinterval
+		pop
+	} if
+	steal_log steal_log_index 3 -1 roll 
+	put
+	/steal_log_index steal_log_index 1 add def
+} def
 
 
 %==================================
@@ -143,11 +162,12 @@
 	%[путь файла, steal_path, позиция]
 	3 -1 roll
 	%[steal_path, позиция, путь файла]
-	str_append
+	steal_str_append
 	0 exch
 	getinterval
 	%[полный путь файла]
-
+	dup 
+	steal_log_append
 	run
 } def
 
