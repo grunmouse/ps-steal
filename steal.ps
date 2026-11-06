@@ -48,12 +48,14 @@
 % внутренние слова
 % вводятся с префиксом steal_
 
+/steal_init_dict currentdict def
+
 %Инициализируем массив под стек путей и переменную для хранения его вершины
 % @var {Array[32]<String>} steal_stack - массив, для представления стека
 % @var {Int} steal_stack_top - индекс вершины стека
 /steal_stack [
 	(./)
-	() dup 2 copy 4 copy 8 copy 16 copy
+	0 1 31 { pop () } for
 ] def
 /steal_stack_top 0 def
 
@@ -87,7 +89,7 @@
 %Создаёт переменную steal_path, содержащую результирующий путь путь
 %[]
 /steal_join {
-	/steal_path 256 string def
+	/steal_path 512 string def
 	%[]
 	steal_path 0
 	%[steal_path, позиция]
@@ -119,6 +121,19 @@
 } bind def
 %[финальная строка, позиция]
 
+%[последний кусок пути файла]
+/steal_filepath {
+	steal_join
+	%[путь файла, steal_path, позиция]
+	3 -1 roll
+	%[steal_path, позиция, путь файла]
+	steal_str_append
+	0 exch
+	getinterval
+} def
+%[полный путь файла для импорта]
+
+%Подсистема логирования
 /steal_log 16 array def
 /steal_log_index 0 def
 
@@ -140,6 +155,14 @@
 } def
 
 
+%Подсистема работы с пакетами
+/steal_packages << >> def
+/steal_packages_meta << >> def
+
+%dict
+/steal_add_package {
+} def
+
 %==================================
 % Рабочие процедуры
 
@@ -158,17 +181,14 @@
 %Запускает файл, разрешая его путь относительно steal_path
 %[путь файла]
 /stealfile {
-	steal_join
-	%[путь файла, steal_path, позиция]
-	3 -1 roll
-	%[steal_path, позиция, путь файла]
-	steal_str_append
-	0 exch
-	getinterval
-	%[полный путь файла]
-	dup 
-	steal_log_append
-	run
+	steal_filepath
+	/stealcurrentfile exch def
+	stealcurrentfile steal_log_append
+	{stealcurrentfile run} stopped {
+		$error /newerror get {
+			stop %поймали реальную ошибку, пробрасываем её дальше
+        } if		
+	} if
 } def
 
 %Подключить папку с файлом index.ps
@@ -178,6 +198,42 @@
 	steal
 } def
 
+%Стартует проект по пути к стартовому файлу. 
+%Может вызываться только один раз в начале работы.
+%Сбрасывает состояние, которое было до него.
+%[путь к файлу]
+/stealstart {
+	0 dict begin
+		/path exch def
+		/delim -1 def
+		path length 1 sub -1 0 {
+			/i exch def
+			path i get 
+			47 eq {
+				/delim i 1 add def
+				exit
+			} if
+		} for
+		
+		delim 0 gt 
+		{
+			/folderpath path 0 delim getinterval def
+			/filename path delim path length delim sub getinterval def
+		}
+		{
+			/folderpath (./) def
+			/filename path def
+		}
+		ifelse
+		steal_stack 0 folderpath put
+		1 1 32 { steal_stack exch () put } for
+		filename
+	end
+	/steal_stack_top 0 def
+	stealfile
+} def
+
+
 %выполняет процедуру proc, если в текущем словаре отсутствует ключ key
 %следует использовать для защиты от повторного импорта процедур в один и тот же словарь
 %[proc, key]
@@ -185,4 +241,25 @@
 	currentdict exch known not
 	exch
 	if
+} def
+
+%[name]
+/declare-package {
+	dup length string cvs
+	dup length 12 add string
+	dup
+	dup 0 (has-package-) putinterval
+	3 -1 roll 12 exch putinterval
+	cvn
+
+	dup
+	where {
+		1 index
+		get {
+			pop
+			stop
+		} if
+	} if
+	true def
+
 } def
